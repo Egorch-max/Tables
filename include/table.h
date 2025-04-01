@@ -104,7 +104,7 @@ public:
 
 	unordered_table() : size(0) {}
 
-	unordered_table(const std::initializer_list<_table_interface<T>::cell>& l) : table(l), size(l.size()) {}
+	unordered_table(const std::initializer_list<typename _table_interface<T>::cell>& l) : table(l), size(l.size()) {}
 
 	unordered_table(const unordered_table<T>&& t) : table(std::move(t.table)), size(std::move(t.size)) {}
 
@@ -286,7 +286,7 @@ public:
 
 		size_t pos = it - table.begin();
 
-		table.emplace_back(t_cell<T>({ _key, _value }));
+		table.emplace_back( _key, _value );
 		size++;
 
 		for (int i = size - 1; i > pos; --i)

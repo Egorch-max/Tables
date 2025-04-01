@@ -90,19 +90,7 @@ int main() {
                 std::cout << " Пожалуйста, попробуйте снова:\n";
             }
         }
-        if (item == 7) {
-            std::cout << "Введите имя многочлена в качестве ключа\n";
-            size_t key;
-            std::cin >> key;
-
-            if (t1.find(key)) {
-                std::cout << "Найденный многочлен: " << t1[key] << "\n";
-            }
-            else {
-                std::cout << "Многочлен с таким ключом не найден!\n";
-            }
-        }
-
+     
         if (item >= 6 && item <= 9) {
             try {
                 std::string s;

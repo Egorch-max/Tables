@@ -1,509 +1,431 @@
 ﻿#pragma once
 
-#include <iostream>
-#include <string>
 #include <vector>
-#include <initializer_list>
+#include <list>
 #include <algorithm>
-#include <cmath>
-#include "polynomial.h"
-#include <fstream>
+#include <utility>
+#include <functional>
+#include <stdexcept>
 
-
-#define GET_COMPLEXITY
-#ifdef GET_COMPLEXITY
-size_t ops_find = 0;
-size_t ops_insert = 0;
-size_t ops_erase = 0;
-
-void get_complexity_insert() {
-	std::ofstream out;
-	out.open("log.txt", std::ios::app);
-	out << std::endl;
-	out << "Number of commands, executed the last time insert function was called:\n";
-	out << ops_insert << std::endl;
-	out.close();
-}
-
-void get_complexity_find() {
-	std::ofstream out;
-	out.open("log.txt", std::ios::app);
-	out << std::endl;
-	out << "Number of commands, executed the last time the search function was called:\n";
-	out << ops_find << std::endl;
-	out.close();
-}
-
-void get_complexity_erase() {
-	std::ofstream out;
-	out.open("log.txt", std::ios::app);
-	out << std::endl;
-	out << "Number of commands, executed the last time erase function was called:\n";
-	out << ops_erase << std::endl;
-	out.close();
-}
-
-#endif
-
-//====================== abstract class _table_interface and class cell =========================
 template <class T>
-class _table_interface {
+
+class _table_interface
+
+{
+
 public:
-	class cell {
-	public:
-		size_t key;
-		T value;
 
-		cell() {}
+    virtual ~_table_interface() = default;
 
-		cell(size_t _key, T _value) :key(_key), value(_value) {}
+    virtual void clear() = 0;
 
-		cell(const std::pair<size_t, T>& p) :key(p.first), value(p.second) {}
+    virtual bool erase(size_t key) = 0;
 
-		cell(cell&& c) :key(std::move(c.key)), value(std::move(c.value)) {}
+    virtual bool insert(size_t key, const T& value) = 0;
 
-		cell(const cell& c) :key(c.key), value(c.value) {}
+    virtual T* find(size_t key) = 0;
 
-		virtual ~cell() {}
+    virtual const T* find(size_t key) const = 0;
 
-		cell& operator=(const cell& c) {
-			key = c.key;
-			value = c.value;
-			return *this;
-		}
+    virtual T& operator[](size_t key) = 0;
 
-		bool operator==(const cell& c) {
-			return (key == c.key && value == c.value);
-		}
-		bool operator!=(const cell& c) {
-			return !(*this == c);
-		}
-	};
+    virtual const T& operator[](size_t key) const = 0;
 
-	virtual void clear() = 0;
+    virtual size_t size() const = 0;
 
-	virtual bool erase(size_t _key) = 0;
-
-	virtual bool insert(size_t _key, const T& _val) = 0;
-
-	virtual _table_interface<T>::cell* find(size_t key) = 0;
-
+    virtual bool empty() const = 0;
 };
 
-template <class T>
-using t_cell = typename _table_interface<T>::cell;
+// ====================== unordered_table ======================
 
-
-//===================================== class unordered_table ===================================
 template <class T>
-class unordered_table : public _table_interface<T> {
+
+class unordered_table : public _table_interface<T>
+{
+    std::vector<std::pair<size_t, T>> data;
+
 public:
-	std::vector<t_cell<T>> table;
-	size_t size;
+    bool insert(size_t key, const T& value) override
+    {
+        if (find(key))
+        {
+            return false;
+        }
 
+        data.emplace_back(key, value);
 
-	unordered_table() : size(0) {}
+        return true;
+    }
 
-	unordered_table(const std::initializer_list<typename _table_interface<T>::cell>& l) : table(l), size(l.size()) {}
+    bool erase(size_t key) override
+    {
+        auto it = std::find_if(data.begin(), data.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
 
-	unordered_table(const unordered_table<T>&& t) : table(std::move(t.table)), size(std::move(t.size)) {}
+        if (it != data.end())
+        {
+            *it = std::move(data.back());
 
-	unordered_table(const unordered_table<T>& t) : table(t.table), size(t.size) {}
+            data.pop_back();
 
-	virtual ~unordered_table() {
-		clear();
-	}
+            return true;
+        }
 
-	bool insert(size_t key, const T& val) override {
-		if (find(key) == nullptr) {
-			table.push_back(t_cell<T>(key, val));
-			size++;
-#ifdef GET_COMPLEXITY
-			ops_insert = 1;
-			std::ofstream out;
-			out.open("log.txt", std::ios::app);
-			out << "\nUNORDERED TABLE";
-			out.close();
-			get_complexity_insert();
-#endif
-			return true;
-		}
-		else return false;
-	}
+        return false;
+    }
 
-	bool erase(size_t key) override {
-		bool deleted = false;
-#ifdef GET_COMPLEXITY
-		ops_erase = 0;
-#endif
+    T* find(size_t key) override
+    {
+        auto it = std::find_if(data.begin(), data.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
 
-		for (auto& x : table) {
-#ifdef GET_COMPLEXITY
-			++ops_erase;
-#endif
-			if (x.key == key) {
-				// also work correct for size == 1
-				x = table[size - 1];
-				table.pop_back();
-				size--;
-				deleted = true;
+        if (it != data.end()) 
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
 
-#ifdef GET_COMPLEXITY
-				ops_erase++;
-				std::ofstream out;
-				out.open("log.txt", std::ios::app);
-				out << "\nUNORDERED TABLE";
-				out.close();
-				get_complexity_erase();
-#endif
-				return true;
-			}
-		}
+    const T* find(size_t key) const override
+    {
+        auto it = std::find_if(data.begin(), data.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
 
-		if (!deleted) return false;
-	}
+        if (it != data.end())
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
 
-	t_cell<T>* find(size_t key) override {
-#ifdef GET_COMPLEXITY
-		ops_find = 0;
-#endif
+    T& operator[](size_t key) override
+    {
+        auto it = std::find_if(data.begin(), data.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
 
-		for (auto& x : table) {
-#ifdef GET_COMPLEXITY
-			++ops_find;
-#endif
-			if (x.key == key) {
-#ifdef GET_COMPLEXITY
-				std::ofstream out;
-				out.open("log.txt", std::ios::app);
-				out << "\nUNORDERED TABLE";
-				out.close();
-				get_complexity_find();
-#endif
-				return &x;
-			}
-		}
-#ifdef GET_COMPLEXITY
-		std::ofstream out;
-		out.open("log.txt", std::ios::app);
-		out << "\nUNORDERED TABLE";
-		out.close();
-		get_complexity_find();
-#endif
-		return nullptr;
-	}
+        if (it != data.end())
+        {
+            return it->second;
+        }
 
-	const size_t get_size() const noexcept { return size; }
+        throw std::out_of_range("Key not found");
+    }
 
-	bool empty() const noexcept { return size == 0; }
+    const T& operator[](size_t key) const override
+    {
+        auto it = std::find_if(data.begin(), data.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
 
-	void clear() { table.clear(); }
+        if (it != data.end())
+        {
+            return it->second;
+        }
 
-	T& operator[](size_t _key) {
-		auto ptr = find(_key);
+        throw std::out_of_range("Key not found");
+    }
 
-		if (ptr != nullptr)
-			return (*ptr).value;
-		else throw "Incorrect access by key to a table cell\n";
-	}
+    void clear() override
+    {
+        data.clear();
+    }
+
+    size_t size() const override
+    {
+        return data.size();
+    }
+
+    bool empty() const override
+    {
+        return data.empty();
+    }
 };
 
-
-//===================================== class ordered_table =====================================
-template <class T>
-class ordered_table : public unordered_table<T> {
-public:
-	std::vector<t_cell<T>> table;
-	size_t size;
-
-	ordered_table() : size(0) {}
-
-	ordered_table(const std::initializer_list<t_cell<T>>& l) :table(l), size(l.size()) {
-		std::sort(table.begin(), table.end(), [](const t_cell<T>& first, const t_cell<T>& second) {
-			return first.key < second.key;
-			});
-	}
-
-	ordered_table(const unordered_table<T>& t) :table(t.table), size(table.size()) {
-		std::sort(table.begin(), table.end(), [](const t_cell<T>& first, const t_cell<T>& second) {
-			return first.key < second.key;
-			});
-	}
-
-	ordered_table(unordered_table<T>&& t) :table(std::move(t.table)), size(std::move(table.size())) {
-		std::sort(table.begin(), table.end(), [](const t_cell<T>& first, const t_cell<T>& second) {
-			return first.key < second.key;
-			});
-	}
-
-	ordered_table(const ordered_table<T>& t) :table(t.table), size(table.size()) {}
-	ordered_table(ordered_table<T>&& t) :table(std::move(t.table)), size(std::move(table.size())) {}
-
-	virtual ~ordered_table() {
-		clear();
-	}
-
-	void clear() { table.clear(); }
-
-	const size_t get_size() const noexcept { return size; }
-
-	bool empty() const noexcept { return size == 0; }
-
-	t_cell<T>* find(size_t key) override {
-		//binary_search
-		auto it = std::lower_bound(table.begin(), table.end(), t_cell<T>(key, T()),
-			[](const t_cell<T>& first, const t_cell<T>& second) {
-				return first.key < second.key;
-			});
-
-#ifdef GET_COMPLEXITY
-		if (table.size() == 1)
-			ops_find = 1;
-		else if (table.size() > 1)
-			ops_find = log2(table.size());
-
-		std::ofstream out;
-		out.open("log.txt", std::ios::app);
-		out << "\nORDERED TABLE";
-		out.close();
-		get_complexity_find();
-#endif
-
-		if (it == table.end() || it->key != key)
-			return nullptr;
-		else return &(*it);
-	}
-
-	bool insert(size_t _key, const T& _value) override {
-		//binary_search
-		auto it = std::lower_bound(table.begin(), table.end(), t_cell<T>(_key, T()),
-			[](const t_cell<T>& first, const t_cell<T>& second) {
-				return first.key < second.key;
-			});
-
-		if (it != table.end() && it->key == _key)
-			return false;
-
-		size_t pos = it - table.begin();
-
-		table.emplace_back( _key, _value );
-		size++;
-
-		for (int i = size - 1; i > pos; --i)
-			std::swap(table[i], table[i - 1]);
-
-#ifdef GET_COMPLEXITY
-		//find + emplace_back
-		if (table.size() == 1)
-			ops_insert = 2;
-		else if (table.size() > 1)
-			ops_insert = log2(table.size()) + 1;
-
-		//swap
-		ops_insert += (size - 1 > pos) ? size - 1 - pos : 0;
-		std::ofstream out;
-		out.open("log.txt", std::ios::app);
-		out << "\nORDERED TABLE";
-		out.close();
-		get_complexity_insert();
-#endif
-		return true;
-	}
-
-	bool erase(size_t key) override {
-		auto it = find(key);
-
-		if (it != nullptr) {
-			int pos = it - &table[0];
-
-			for (int i = pos; i < size - 1; ++i)
-				std::swap(table[i], table[i + 1]);
-
-			table.pop_back();
-
-#ifdef GET_COMPLEXITY
-			//find + pop_back
-			ops_erase = ops_find + 1;
-			//swap
-			ops_erase += (size - 1 > pos) ? size - 1 - pos : 0;
-
-			std::ofstream out;
-			out.open("log.txt", std::ios::app);
-			out << "\nORDERED TABLE";
-			out.close();
-			get_complexity_erase();
-#endif
-		}
-		else return false;
-
-		size--;
-		return true;
-	}
-
-	T& operator[](size_t _key) {
-		auto ptr = find(_key);
-
-		if (ptr != nullptr)
-			return (*ptr).value;
-		else throw "Incorrect access by key to a table cell\n";
-	}
-};
-
-
-//======================================= class hash_table ======================================
-#define NUM_BUCKETS 1000
-#define PRIME 1009
+// ====================== ordered_table ======================
 
 template <class T>
-class hash_table : public _table_interface<T> {
-public:
-	std::vector<List<t_cell<T>>> table;
-	size_t size;
 
-private:
-	size_t a, b;
-
-private:
-	size_t hash_function(size_t _key) {
-		return ((a * _key + b) % PRIME) % NUM_BUCKETS;
-	}
+class ordered_table : public _table_interface<T>
+{
+    std::vector<std::pair<size_t, T>> data;
 
 public:
+    bool insert(size_t key, const T& value) override
+    {
+        auto it = std::lower_bound(data.begin(), data.end(), key,[](const auto& item, size_t k)
+            {
+                return item.first < k;
+            }
+        );
 
-	hash_table() :size(0) {
-		srand(time(NULL));
-		a = rand() % PRIME;
-		b = rand() % PRIME;
+        if (it != data.end() && it->first == key)
+        {
+            return false;
+        }
 
-		table.resize(NUM_BUCKETS);
-	}
+        data.emplace(it, key, value);
 
-	hash_table(const hash_table<T>& t) :table(t.table), size(t.size), a(t.a), b(t.b) {}
+        return true;
+    }
 
-	hash_table(hash_table<T>&& t) :table(std::move(t.table)), size(std::move(t.size)), a(t.a), b(t.b) {}
+    bool erase(size_t key) override
+    {
+        auto it = std::lower_bound(data.begin(), data.end(), key,[](const auto& item, size_t k)
+            {
+                return item.first < k;
+            }
+        );
 
-	hash_table(const std::initializer_list<t_cell<T>>& l) {
-		table.resize(NUM_BUCKETS);
-		srand(time(NULL));
-		a = rand() % PRIME;
-		b = rand() % PRIME;
+        if (it != data.end() && it->first == key)
+        {
+            data.erase(it);
 
-		size = 0;
-		for (auto& val : l)
-			insert(val.key, val.value);
-	}
+            return true;
+        }
 
-	virtual ~hash_table() {
-		clear();
-	}
+        return false;
+    }
 
-	const size_t get_size() const noexcept { return size; }
+    T* find(size_t key) override
+    {
+        auto it = std::lower_bound(data.begin(), data.end(), key,[](const auto& item, size_t k)
+            {
+                return item.first < k;
+            }
+        );
 
-	bool empty() const noexcept { return size == 0; }
+        if (it != data.end() && it->first == key)
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
 
-	void clear() override {
-		for (size_t i = 0; i < NUM_BUCKETS; ++i)
-			table[i].clear();
+    const T* find(size_t key) const override
+    {
+        auto it = std::lower_bound(data.begin(), data.end(), key,[](const auto& item, size_t k)
+            {
+                return item.first < k;
+            }
+        );
 
-		table.clear();
-	}
+        if (it != data.end() && it->first == key)
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
 
-	t_cell<T>* find(size_t _key) override {
-		size_t hash = hash_function(_key);
-#ifdef GET_COMPLEXITY
-		ops_find = 1;
-#endif
-		for (auto it = table[hash].begin(); it != table[hash].end(); ++it) {
-#ifdef GET_COMPLEXITY
-			++ops_find;
-#endif
-			if (it->data.key == _key) {
-#ifdef GET_COMPLEXITY
-				std::ofstream out;
-				out.open("log.txt", std::ios::app);
-				out << "\nHASH TABLE";
-				out.close();
-				get_complexity_find();
-#endif
-				return &(it->data);
-			}
-		}
-#ifdef GET_COMPLEXITY
-		std::ofstream out;
-		out.open("log.txt", std::ios::app);
-		out << "\nHASH TABLE";
-		out.close();
-		get_complexity_find();
-#endif
-		return nullptr;
-	}
+    T& operator[](size_t key) override
+    {
+        auto it = std::lower_bound(data.begin(), data.end(), key,[](const auto& item, size_t k)
+            {
+                return item.first < k;
+            }
+        );
 
-	bool insert(size_t _key, const T& _val) override {
-		auto it = find(_key);
+        if (it != data.end() && it->first == key)
+        {
+            return it->second;
+        }
 
-		if (it != nullptr)
-			return false;
+        throw std::out_of_range("Key not found");
+    }
 
-		size_t hash = hash_function(_key);
+    const T& operator[](size_t key) const override
+    {
+        auto it = std::lower_bound(data.begin(), data.end(), key,[](const auto& item, size_t k)
+            {
+                return item.first < k;
+            }
+        );
 
-		t_cell<T> new_node(_key, _val);
-		table[hash].insert(0, new_node);
-		size++;
+        if (it != data.end() && it->first == key)
+        {
+            return it->second;
+        }
 
-#ifdef GET_COMPLEXITY
-		ops_insert = ops_find + 1;
-		std::ofstream out;
-		out.open("log.txt", std::ios::app);
-		out << "\nHASH TABLE";
-		out.close();
-		get_complexity_insert();
-#endif
-		return true;
-	}
+        throw std::out_of_range("Key not found");
+    }
 
-	bool erase(size_t _key) override {
-		typename List<t_cell<T>>::iterator t = NULL;
-		bool f = 0;
+    void clear() override
+    {
+        data.clear();
+    }
 
-		size_t hash = hash_function(_key);
-#ifdef GET_COMPLEXITY
-		ops_erase = 1;
-#endif
+    size_t size() const override
+    {
+        return data.size();
+    }
 
-		for (auto it = table[hash].begin(); it != table[hash].end(); ++it) {
-#ifdef GET_COMPLEXITY
-			++ops_erase;
-#endif
-			if (it->data.key == _key) {
-				f = 1;
-				break;
-			}
-			else t = it->next;
-		}
-
-		if (f == 0) return false;
-
-		table[hash].erase(*t);
-		size--;
-
-#ifdef GET_COMPLEXITY
-		++ops_erase;
-		std::ofstream out;
-		out.open("log.txt", std::ios::app);
-		out << "\nHASH TABLE";
-		out.close();
-		get_complexity_erase();
-#endif
-
-		return true;
-	}
-
-	T& operator[](size_t _key) {
-		auto ptr = find(_key);
-
-		if (ptr != nullptr)
-			return (*ptr).value;
-		else throw "Incorrect access by key to a table cell\n";
-	}
+    bool empty() const override
+    {
+        return data.empty();
+    }
 };
-	
+
+// ====================== hash_table ======================
+
+template <class T>
+
+class hash_table : public _table_interface<T>
+{
+    static const size_t DEFAULT_BUCKETS = 1000;
+
+    std::vector<std::list<std::pair<size_t, T>>> buckets;
+
+    size_t item_count = 0;
+
+    size_t hash(size_t key) const
+    {
+        return std::hash<size_t>{}(key) % buckets.size();
+    }
+
+public:
+    hash_table() : buckets(DEFAULT_BUCKETS) {}
+
+    bool insert(size_t key, const T& value) override
+    {
+        auto& bucket = buckets[hash(key)];
+
+        if (std::any_of(bucket.begin(), bucket.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }))
+        {
+            return false;
+        }
+
+        bucket.emplace_back(key, value);
+
+        item_count++;
+
+        return true;
+    }
+
+    bool erase(size_t key) override
+    {
+        auto& bucket = buckets[hash(key)];
+
+        auto it = std::find_if(bucket.begin(), bucket.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
+
+        if (it != bucket.end())
+        {
+            bucket.erase(it);
+
+            item_count--;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    T* find(size_t key) override
+    {
+        auto& bucket = buckets[hash(key)];
+
+        auto it = std::find_if(bucket.begin(), bucket.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
+
+        if (it != bucket.end()) 
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
+
+    const T* find(size_t key) const override
+    {
+        const auto& bucket = buckets[hash(key)];
+
+        auto it = std::find_if(bucket.begin(), bucket.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
+
+        if (it != bucket.end()) 
+        {
+            return &it->second;
+        }
+        return nullptr;
+    }
+
+    T& operator[](size_t key) override
+    {
+        auto& bucket = buckets[hash(key)];
+
+        auto it = std::find_if(bucket.begin(), bucket.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
+
+        if (it != bucket.end())
+        {
+            return it->second;
+        }
+
+        throw std::out_of_range("Key not found");
+    }
+
+    const T& operator[](size_t key) const override
+    {
+        const auto& bucket = buckets[hash(key)];
+
+        auto it = std::find_if(bucket.begin(), bucket.end(),[key](const auto& item)
+            {
+                return item.first == key;
+            }
+        );
+
+        if (it != bucket.end())
+        {
+            return it->second;
+        }
+
+        throw std::out_of_range("Key not found");
+    }
+
+    void clear() override
+    {
+        for (auto& bucket : buckets)
+        {
+            bucket.clear();
+        }
+
+        item_count = 0;
+    }
+
+    size_t size() const override
+    {
+        return item_count;
+    }
+
+    bool empty() const override
+    {
+        return item_count == 0;
+    }
+};
